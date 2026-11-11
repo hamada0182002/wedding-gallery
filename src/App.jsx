@@ -418,10 +418,10 @@ function saveToDevice(files) {
   }, i * 600));
 }
 
-function Thumb({ it, picked, onClick }) {
+function Thumb({ it, picked, onClick, i }) {
   const [ok, setOk] = useState(false);
   return (
-    <img loading="lazy" referrerPolicy="no-referrer" src={sz(it.t, 400)} alt="" onClick={onClick}
+    <img loading="lazy" referrerPolicy="no-referrer" src={sz(it.t, 400)} alt="" onClick={onClick} style={{ '--d': ((i % 8) * 70) + 'ms' }}
          className={(ok ? 'in ' : '') + (picked ? 'picked' : '')} onLoad={() => setOk(true)}
          ref={(el) => { if (el && !ok && el.complete && el.naturalWidth) setOk(true); }} />
   );
@@ -567,7 +567,7 @@ function Gallery({ mode, onBack }) {
         {!pick && <button className="btn sm fill" onClick={runAll}>Download all</button>}
       </div>
       <div className="mas">
-        {items.map((it, i) => <Thumb key={it.id} it={it} picked={sel.includes(i)} onClick={() => tap(i)} />)}
+        {items.map((it, i) => <Thumb key={it.id} i={i} it={it} picked={sel.includes(i)} onClick={() => tap(i)} />)}
       </div>
       {!items.length && next === null && <p className="up muted center-t">No photos yet</p>}
       <div ref={end} style={{ height: 40 }} />

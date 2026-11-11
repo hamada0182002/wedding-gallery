@@ -38,9 +38,9 @@ label{display:block;color:var(--muted)}
 .env h1{font-size:clamp(2.6rem,9vw,4.6rem)}.date{margin:.5rem 0 0}
 .intro{text-align:center;padding:3.2rem 1rem 1rem;animation:fadeUp .9s .35s both}.intro h2{font-size:1.1rem}.intro .row{justify-content:center;margin-top:1.6rem}
 .bar2{display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:1.4rem}.center-t{text-align:center}
-.mas{column-count:2;column-gap:.55rem}
-@media(min-width:700px){.mas{column-count:3}}@media(min-width:1100px){.mas{column-count:4}}
-.mas img{width:100%;display:block;margin-bottom:.55rem;cursor:pointer;background:var(--env);min-height:140px;opacity:0;transform:translateY(14px) scale(.985);transition:opacity .7s ease,transform .7s ease,outline-color .3s}
+.mas{display:grid;direction:rtl;grid-template-columns:repeat(2,1fr);gap:.55rem}
+@media(min-width:700px){.mas{grid-template-columns:repeat(3,1fr)}}@media(min-width:1100px){.mas{grid-template-columns:repeat(4,1fr)}}
+.mas img{width:100%;aspect-ratio:3/4;object-fit:cover;display:block;cursor:pointer;background:var(--env);opacity:0;transform:translateY(14px);transition:opacity .8s ease var(--d,0ms),transform .8s ease var(--d,0ms),outline-color .3s}
 .mas img.in{opacity:1;transform:none}.mas img.in:hover{transform:scale(1.015)}
 .mas img.picked{outline:3px solid var(--text);outline-offset:-3px;opacity:.7}
 .lb{position:fixed;inset:0;background:var(--bg);z-index:20;display:flex;align-items:center;justify-content:center;animation:fadeIn .35s;overflow:hidden}
