@@ -233,21 +233,27 @@ async function fetchFile(it, onP) {
   return new File(parts, it.n, { type: 'image/jpeg' });
 }
 
-// تجهيز مجموعة صور (3 معًا) مع شريط تقدم إجمالي
-async function prepare(list, label, setJob, stopRef) {
-  const fr = list.map(() => 0);
+// تجهيز دفعة صور (3 معًا): نكمل جلب الصور من مكان ما وقفنا لحد ما نوصل لحد أقصى للعدد أو للحجم، ونرجّع الصور وعددها
+// الحد بالحجم بيحمي ذاكرة الآيفون، فلو الصور خفيفة الدفعة بتكبر، ولو تقيلة بتصغر لوحدها
+async function prepareBatch(list, from, maxCount, maxBytes, label, setJob, stopRef) {
   const files = [];
-  const upd = () => setJob({ label, pct: Math.round((100 * fr.reduce((a, b) => a + b, 0)) / list.length) });
+  const fr = new Map();
+  let k = from, bytes = 0;
+  const upd = () => {
+    let s = from; fr.forEach((v) => { s += v; });
+    setJob({ label, pct: Math.min(100, Math.round((100 * s) / list.length)) });
+  };
   upd();
-  let k = 0;
   const run = async () => {
-    while (k < list.length && !stopRef.current) {
+    while (k < list.length && !stopRef.current && k - from < maxCount && bytes < maxBytes) {
       const i = k++;
-      files[i] = await fetchFile(list[i], (p) => { fr[i] = p; upd(); });
+      fr.set(i, 0);
+      const f = await fetchFile(list[i], (p) => { fr.set(i, p); upd(); });
+      files[i - from] = f; bytes += f.size;
     }
   };
   await Promise.all([run(), run(), run()]);
-  return files;
+  return { files: files.filter(Boolean), used: k - from };
 }
 
 // أندرويد والكمبيوتر: تنزيل مباشر لكل صورة كملف مستقل
@@ -360,15 +366,19 @@ function Gallery({ mode, onBack }) {
   };
   const downloadList = async (list) => {
     stopRef.current = false;
-    const size = isIOS ? 10 : 12;
-    const n = Math.ceil(list.length / size);
+    // آيفون: دفعات كبيرة (لحد 40 صورة أو حوالي 250 ميجا) عشان ضغطات "Save to Photos" تقل. لو الموقع هنج على الآيفون قلّل الرقمين
+    const maxCount = isIOS ? 40 : 12;
+    const maxBytes = isIOS ? 250 * 1024 * 1024 : Infinity;
     try {
-      for (let b = 0; b < n && !stopRef.current; b++) {
-        const part = list.slice(b * size, (b + 1) * size);
-        const files = await prepare(part, n > 1 ? `Preparing ${b + 1} / ${n}` : 'Preparing', setJob, stopRef);
+      let from = 0, b = 0;
+      while (from < list.length && !stopRef.current) {
+        b++;
+        const { files, used } = await prepareBatch(list, from, maxCount, maxBytes, list.length > maxCount ? `Preparing batch ${b}` : 'Preparing', setJob, stopRef);
+        from += used;
         setJob(null);
         if (stopRef.current) break;
-        await deliver(files, n > 1 ? `Batch ${b + 1} / ${n} · ${files.length} photos` : `${files.length} photo${files.length > 1 ? 's' : ''} ready`);
+        const more = from < list.length;
+        await deliver(files, more ? `Batch ${b} · ${files.length} photos · ${list.length - from} left` : (b > 1 ? `Last batch · ${files.length} photos` : `${files.length} photo${files.length > 1 ? 's' : ''} ready`));
       }
       if (!stopRef.current) setMsg('Done');
     } catch (e) { setJob(null); setMsg('Something went wrong. Please try again'); }
