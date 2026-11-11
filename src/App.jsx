@@ -268,6 +268,8 @@ function Couple({ user, onLogout }) {
   );
 }
 
+const SA_EMAIL = 'gallery-reader@wedding-gallery-514410.iam.gserviceaccount.com';
+
 const EMPTY = { names: '', date: '', username: '', password: '', driveAccount: 'Drive 1', folderId: '', active: true };
 
 function Admin() {
@@ -276,9 +278,23 @@ function Admin() {
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(null);
+  const [fb, setFb] = useState({ items: [], err: '' });
+  const [copied, setCopied] = useState(false);
 
   const load = () => api('listCouples').then((r) => r.ok && setList(r.couples));
-  useEffect(() => { load(); }, []);
+  const loadFb = async () => {
+    const r = await api('listFeedback');
+    if (r.ok) return setFb({ items: r.feedback || [], err: '' });
+    // احتياطي: لو السيرفر القديم بيرجّع التقييم مع بيانات الحساب
+    setFb({ items: [], err: r.error || 'تعذر تحميل التقييمات' });
+  };
+  useEffect(() => { load(); loadFb(); }, []);
+  const copySA = async () => {
+    try { await navigator.clipboard.writeText(SA_EMAIL); }
+    catch { const t = document.createElement('textarea'); t.value = SA_EMAIL; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); }
+    setCopied(true); setTimeout(() => setCopied(false), 1800);
+  };
+  const stars = (n) => '★'.repeat(Math.max(0, Math.min(5, +n || 0))) + '☆'.repeat(5 - Math.max(0, Math.min(5, +n || 0)));
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
 
   const save = async () => {
@@ -313,6 +329,32 @@ function Admin() {
         <div className="card"><b>{list.length}</b>حسابات</div>
         <div className="card"><b>{list.filter((c) => c.active).length}</b>فعّالة</div>
         <div className="card"><b>{list.reduce((a, c) => a + c.photos, 0)}</b>إجمالي الصور</div>
+      </div>
+
+      <div className="card" style={{ marginBottom: '1rem' }}>
+        <label>حساب الخدمة — شارك معاه مجلدات Drive (صلاحية Viewer)</label>
+        <div className="inline">
+          <input readOnly dir="ltr" value={SA_EMAIL} onFocus={(e) => e.target.select()} />
+          <button className="btn sm" onClick={copySA}>{copied ? 'تم النسخ ✓' : 'نسخ'}</button>
+        </div>
+      </div>
+
+      <div className="card tblw" style={{ marginBottom: '1rem' }}>
+        <h3 style={{ padding: '1rem 1rem 0' }}>آراء العرسان</h3>
+        <table>
+          <thead><tr><th>العروسين</th><th>التقييم</th><th>الرأي</th><th>التاريخ</th></tr></thead>
+          <tbody>
+            {fb.items.map((x, i) => (
+              <tr key={x.id || i}>
+                <td>{x.names || x.username || '—'}</td>
+                <td style={{ whiteSpace: 'nowrap', color: '#c9a24b' }}>{stars(x.rating)}</td>
+                <td>{x.text || <span className="muted">—</span>}</td>
+                <td>{x.date ? fmt(x.date) || String(x.date).slice(0, 10) : ''}</td>
+              </tr>
+            ))}
+            {!fb.items.length && <tr><td colSpan="4" className="muted">{fb.err ? `تعذر تحميل الآراء: ${fb.err}` : 'لا توجد آراء بعد.'}</td></tr>}
+          </tbody>
+        </table>
       </div>
 
       <div className="card tblw">
