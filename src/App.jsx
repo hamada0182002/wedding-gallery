@@ -139,7 +139,7 @@ function Feedback() {
     setBusy(true); setMsg('');
     const r = await api('feedback', { rating, text: text.trim() });
     setBusy(false);
-    if (r.ok) { setText(''); setMsg('Thank you for your feedback ♥'); } else setMsg(en(r.error));
+    if (r.ok) { setText(''); setMsg('Thank you for your feedback ♥'); } else { console.error('feedback failed:', r.error); setMsg(en(r.error)); }
   };
   return (
     <section className="hfb" id="feedback">
