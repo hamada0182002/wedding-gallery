@@ -5,6 +5,11 @@ const fmt = (d) => (d ? new Date(d).toLocaleDateString('ar-EG', { dateStyle: 'lo
 const sz = (u, n) => (u ? u.replace(/=s\d+(-c)?$/, '=s' + n) : '');
 const cache = { items: [], next: '' };   // يحفظ الصور المحمّلة ليكون الرجوع للمعرض فوريًا
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+// يقبل رابط المجلد كاملًا ويستخرج منه المعرّف تلقائيًا
+const folderOf = (v) => {
+  const m = String(v).match(/folders\/([\w-]+)/);
+  return m ? m[1] : String(v).trim().split(/[?&#\s]/)[0];
+};
 const gen = () => Math.random().toString(36).slice(2, 6) + Math.random().toString(36).slice(2, 6);
 
 export default function App() {
@@ -122,6 +127,13 @@ function Admin() {
     setBusy(true); const r = await api('syncPhotos'); setBusy(false);
     if (r.ok) setList(r.couples); else setMsg(r.error);
   };
+  const del = async (c) => {
+    if (!window.confirm(`حذف حساب "${c.names}" نهائيًا؟\nسيتم حذف الحساب وتقييمه، والصور على Drive لن تتأثر.`)) return;
+    const r = await api('deleteCouple', { id: c.id });
+    if (!r.ok) return setMsg(r.error);
+    if (f.id === c.id) setF(EMPTY);
+    load();
+  };
   const toggle = async (c) => { await api('setActive', { id: c.id, active: !c.active }); load(); };
   const edit = (c) => { setDone(null); setF({ ...c, password: '' }); window.scrollTo(0, document.body.scrollHeight); };
   const copy = () => navigator.clipboard.writeText(
@@ -145,7 +157,8 @@ function Admin() {
               <tr key={c.id}>
                 <td>{c.names}</td><td>{fmt(c.date)}</td><td>{c.username}</td><td>{c.driveAccount}</td><td>{c.photos}</td>
                 <td><button className={'btn sm' + (c.active ? '' : ' ghost')} onClick={() => toggle(c)}>{c.active ? 'فعّال' : 'موقوف'}</button></td>
-                <td><button className="btn ghost sm" onClick={() => edit(c)}>تعديل</button></td>
+                <td><button className="btn ghost sm" onClick={() => edit(c)}>تعديل</button>{' '}
+                  <button className="btn ghost sm" onClick={() => del(c)}>حذف</button></td>
               </tr>
             ))}
             {!list.length && <tr><td colSpan="7" className="muted">لا توجد حسابات بعد. أضف أول عروسين من النموذج بالأسفل.</td></tr>}
@@ -174,7 +187,12 @@ function Admin() {
               <button className="btn ghost sm" onClick={() => setF({ ...f, password: gen() })}>توليد</button></div>
           </div>
           <div><label>حساب Google Drive</label><input value={f.driveAccount} onChange={set('driveAccount')} /></div>
-          <div><label>معرّف المجلد (Folder ID)</label><input value={f.folderId} onChange={set('folderId')} /></div>
+          <div>
+            <label>رابط مجلد Drive (أو الـ ID)</label>
+            <input value={f.folderId} placeholder="الصق رابط المجلد كامل هنا"
+                   onChange={(e) => setF({ ...f, folderId: folderOf(e.target.value) })} />
+            <p className="note" style={{ marginTop: '-.5rem' }}>يُستخرج المعرّف تلقائيًا من الرابط.</p>
+          </div>
         </div>
         <p className="err">{msg}</p>
         <button className="btn" disabled={busy} onClick={save}>{busy ? 'جارٍ الحفظ…' : f.id ? 'حفظ التعديلات' : 'إضافة الحساب'}</button>{' '}
