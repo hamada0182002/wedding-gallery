@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { api, tok, wjson, wfetch, resetPhotoToken, setPhotoToken } from './api';
 import { LOGO } from './logo';
 
@@ -334,6 +335,11 @@ function Gallery({ mode, onBack }) {
     const k = (e) => { if (e.key === 'Escape') setOpen(-1); if (e.key === 'ArrowLeft') go(-1); if (e.key === 'ArrowRight') go(1); };
     window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k);
   });
+  useEffect(() => {   // منع تحريك الصفحة من ورا الصورة
+    if (open < 0) return;
+    const o = document.body.style.overflow; document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = o; };
+  }, [open >= 0]);
   useEffect(() => {   // تحميل مسبق للصورة التالية والسابقة
     if (open < 0) return;
     [1, -1].forEach((d) => {
@@ -424,7 +430,7 @@ function Gallery({ mode, onBack }) {
         </div>
       )}
 
-      {open >= 0 && items[open] && (
+      {open >= 0 && items[open] && createPortal(
         <div className="lb" onTouchStart={(e) => { x0.current = e.touches[0].clientX; }}
              onTouchEnd={(e) => { const d = e.changedTouches[0].clientX - x0.current; if (Math.abs(d) > 50) go(d < 0 ? 1 : -1); }}>
           <div className="lbbar">
@@ -438,7 +444,8 @@ function Gallery({ mode, onBack }) {
           <img src={sz(items[open].t, 400)} className="lbthumb" alt="" referrerPolicy="no-referrer" />
           <FullImg key={items[open].id} it={items[open]} cls={'lbfull ' + (dir > 0 ? 'sn' : 'sp')} />
           <button className="nv" style={{ right: '.8rem' }} disabled={atEnd} onClick={() => go(1)}>›</button>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
