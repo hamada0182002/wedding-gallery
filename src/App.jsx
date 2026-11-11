@@ -69,6 +69,7 @@ function Login({ onOk }) {
     <div className="center view">
       <div className="login">
         <img className="logo big" src={LOGO} alt="HM Studio" />
+        <p className="script lgtxt">Welcome to gallery<br /><span>Hamada Mohamed Photography</span></p>
         <label className="up">Username</label>
         <input value={u} onChange={(e) => setU(e.target.value)} autoComplete="username" autoCapitalize="none" />
         <label className="up">Password</label>
@@ -173,17 +174,20 @@ function Home({ p, onOpen, onMenu }) {
       <section className="hhero">
         {cover && <img className={'hcover' + (loaded ? ' in' : '')} src={cover} alt="" referrerPolicy="no-referrer" onLoad={() => setLoaded(true)} />}
         <div className="hshade" />
+        <i className="hglow hgl1" />
+        <i className="hglow hgl2" />
         <img className="hlogo" src={LOGO} alt="HM Studio" />
         <button className="hmenu" aria-label="Menu" onClick={onMenu}><i /><i /><i /></button>
-        <div className="hnames">
-          <h1 className="gv">{p.names}</h1>
-          <Divider />
-          <p className="hdate">{fmt(p.date).replace(/\//g, ' / ')}</p>
-        </div>
         <svg className="hwave" viewBox="0 0 852 70" preserveAspectRatio="none" aria-hidden="true">
           <path d="M0 26C110 2 230 34 430 24S720 -6 852 12V70H0Z" />
         </svg>
       </section>
+
+      <div className="hnames">
+        <h1 className="gv">{p.names}</h1>
+        <Divider />
+        <p className="hdate">{fmt(p.date).replace(/\//g, ' / ')}</p>
+      </div>
 
       <Sprig className="hflw" flowers />
 
@@ -198,12 +202,6 @@ function Home({ p, onOpen, onMenu }) {
       <div className="hbtns">
         <button className="hbtn fill" onClick={() => onOpen('view')}><IcImage />View Gallery<IcArrow /></button>
         <button className="hbtn" onClick={() => onOpen('all')}><IcDownload />Download All</button>
-      </div>
-
-      <div className="hmos">
-        {tiles.map((it, i) => (
-          <img key={i} className={'m' + i} src={sz(it.t, 700)} alt="" referrerPolicy="no-referrer" loading="lazy" onClick={() => onOpen('view')} />
-        ))}
       </div>
 
       <Feedback />
@@ -240,8 +238,7 @@ function Couple({ user, onLogout }) {
   const tabs = [
     ['home', 'Home', IcHome, goHome],
     ['gallery', 'Gallery', IcImage, () => open('view')],
-    ['feedback', 'Feedback', IcStarO, goFeedback],
-    ['settings', 'Settings', IcGear, () => setSheet(true)]
+    ['feedback', 'Feedback', IcStarO, goFeedback]
   ];
   return (
     <>
