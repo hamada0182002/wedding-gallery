@@ -20,6 +20,22 @@ const en = (e = '') => /غير صحيحة/.test(e) ? 'Incorrect username or pass
   : /تعذر الاتصال|انتهت/.test(e) ? 'Connection problem. Please try again'
   : 'Something went wrong. Please try again';
 
+// زرار الرجوع في أندرويد: كل شاشة/نافذة مفتوحة تأخذ خطوة في سجل المتصفح، فالرجوع يقفلها بدل ما يخرج من الموقع
+function useBackClose(active, close) {
+  const ref = useRef(close); ref.current = close;
+  useEffect(() => {
+    if (!active) return;
+    try { history.pushState({ wgLayer: true }, ''); } catch { return; }
+    let popped = false;
+    const onPop = () => { popped = true; ref.current(); };
+    window.addEventListener('popstate', onPop, { once: true });
+    return () => {
+      window.removeEventListener('popstate', onPop);
+      if (!popped) { try { if (history.state && history.state.wgLayer) history.back(); } catch { /* ignore */ } }
+    };
+  }, [active]);
+}
+
 export default function App() {
   const [user, setUser] = useState(null);
   const [ready, setReady] = useState(false);
@@ -238,6 +254,8 @@ function Couple({ user, onLogout }) {
   const [tab, setTab] = useState('home');
   const [sheet, setSheet] = useState(false);
   const home = view.name === 'home';
+  useBackClose(!home, () => { setView({ name: 'home', mode: 'view' }); setTab('home'); });
+  useBackClose(sheet, () => setSheet(false));
   const open = (mode) => { setView({ name: 'gallery', mode }); setTab('gallery'); window.scrollTo(0, 0); };
   const goHome = () => { setView({ name: 'home', mode: 'view' }); setTab('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const goFeedback = () => {
@@ -504,6 +522,8 @@ function Gallery({ mode, onBack }) {
   const x0 = useRef(0);
   const stopRef = useRef(false);
   const resumeRef = useRef(null);
+  useBackClose(open >= 0, () => setOpen(-1));
+  useBackClose(pick, () => { setPick(false); setSel([]); });
 
   const more = async () => {
     if (busy || next === null) return;
