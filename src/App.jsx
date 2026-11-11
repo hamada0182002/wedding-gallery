@@ -1,19 +1,21 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, tok } from './api';
 
 const fmt = (d) => (d ? new Date(d).toLocaleDateString('ar-EG', { dateStyle: 'long' }) : '');
+const sz = (u, n) => (u ? u.replace(/=s\d+(-c)?$/, '=s' + n) : '');
 const gen = () => Math.random().toString(36).slice(2, 6) + Math.random().toString(36).slice(2, 6);
 
 export default function App() {
   const [user, setUser] = useState(null);
   const [ready, setReady] = useState(false);
+  const [view, setView] = useState({ name: 'home', pick: false });
 
   useEffect(() => {
     if (!tok.get()) { setReady(true); return; }
     api('me').then((r) => { if (r.ok) setUser(r); else tok.clear(); setReady(true); });
   }, []);
 
-  const logout = async () => { await api('logout'); tok.clear(); setUser(null); };
+  const logout = async () => { await api('logout'); tok.clear(); setUser(null); setView({ name: 'home', pick: false }); };
 
   if (!ready) return <div className="center muted">جارٍ التحميل…</div>;
   if (!user) return <Login onOk={setUser} />;
@@ -24,7 +26,9 @@ export default function App() {
         <button className="btn ghost sm" onClick={logout}>تسجيل الخروج</button>
       </header>
       <main className="wrap">
-        {user.role === 'admin' ? <Admin /> : <Home p={user.profile} />}
+        {user.role === 'admin' ? <Admin />
+          : view.name === 'gallery' ? <Gallery pickInit={view.pick} onBack={() => setView({ name: 'home', pick: false })} />
+          : <Home p={user.profile} onOpen={(pick) => setView({ name: 'gallery', pick })} />}
       </main>
     </>
   );
@@ -62,10 +66,15 @@ function Login({ onOk }) {
   );
 }
 
-function Home({ p }) {
+function Home({ p, onOpen }) {
+  const [cover, setCover] = useState('');
+  useEffect(() => {
+    if (p.photos) api('photos', { pageSize: 1 }).then((r) => r.ok && r.photos[0] && setCover(sz(r.photos[0].t, 1600)));
+  }, [p.photos]);
   return (
     <>
       <section className="hero">
+        {cover && <img className="cover" src={cover} alt="" referrerPolicy="no-referrer" />}
         <div className="ov">
           <p>أهلًا بكما</p>
           <h1 className="script">{p.names}</h1>
@@ -73,8 +82,12 @@ function Home({ p }) {
         </div>
       </section>
       <div className="card" style={{ marginTop: '1rem' }}>
-        <p style={{ margin: 0 }}>مبروك! ذكرى يومكم الجميل محفوظة هنا، وسنفعّل عرض الصور وتنزيلها في الخطوة القادمة.</p>
+        <p style={{ margin: 0 }}>مبروك! ذكرى يومكم الجميل محفوظة هنا بجودتها الكاملة، شاهدوها وحمّلوها وقتما أحببتم.</p>
         <div className="stat"><b>{p.photos}</b><span className="muted">صورة في الألبوم</span></div>
+        <div className="row">
+          <button className="btn" onClick={() => onOpen(false)}>عرض الصور</button>
+          <button className="btn ghost" onClick={() => onOpen(true)}>تنزيل الصور</button>
+        </div>
       </div>
     </>
   );
@@ -101,6 +114,10 @@ function Admin() {
     if (f.password) setDone({ n: f.names, u: f.username, p: f.password });
     setF(EMPTY); load();
   };
+  const sync = async () => {
+    setBusy(true); const r = await api('syncPhotos'); setBusy(false);
+    if (r.ok) setList(r.couples); else setMsg(r.error);
+  };
   const toggle = async (c) => { await api('setActive', { id: c.id, active: !c.active }); load(); };
   const edit = (c) => { setDone(null); setF({ ...c, password: '' }); window.scrollTo(0, document.body.scrollHeight); };
   const copy = () => navigator.clipboard.writeText(
@@ -109,6 +126,7 @@ function Admin() {
   return (
     <>
       <h2>لوحة التحكم</h2>
+      <p><button className="btn ghost sm" disabled={busy} onClick={sync}>{busy ? 'جارٍ التحديث…' : 'تحديث عدد الصور من Drive'}</button></p>
       <div className="stats">
         <div className="card"><b>{list.length}</b>حسابات</div>
         <div className="card"><b>{list.filter((c) => c.active).length}</b>فعّالة</div>
@@ -158,6 +176,104 @@ function Admin() {
         <button className="btn" disabled={busy} onClick={save}>{busy ? 'جارٍ الحفظ…' : f.id ? 'حفظ التعديلات' : 'إضافة الحساب'}</button>{' '}
         {f.id && <button className="btn ghost" onClick={() => setF(EMPTY)}>إلغاء</button>}
       </div>
+    </>
+  );
+}
+
+// تنزيل الصورة الأصلية على أجزاء (3 ميجا لكل طلب) لتجاوز حدود Apps Script، بدون أي نسخ على Drive
+async function dlFile(it, say) {
+  const chunks = [];
+  let parts = 1;
+  for (let p = 0; p < parts; p++) {
+    const r = await api('download', { id: it.id, part: p });
+    if (!r.ok) { say(r.error); return false; }
+    parts = r.parts;
+    chunks.push(Uint8Array.from(atob(r.data), (c) => c.charCodeAt(0)));
+    say(`جارٍ تجهيز الصورة الأصلية… ${p + 1}/${parts}`);
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(chunks, { type: 'image/jpeg' }));
+  a.download = it.n; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  return true;
+}
+
+function Gallery({ pickInit, onBack }) {
+  const [items, setItems] = useState([]);
+  const [next, setNext] = useState('');      // '' = أول صفحة، null = انتهت الصور
+  const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(-1);
+  const [pick, setPick] = useState(pickInit);
+  const [sel, setSel] = useState([]);
+  const [msg, setMsg] = useState('');
+  const end = useRef(null);
+  const x0 = useRef(0);
+
+  const more = async () => {
+    if (busy || next === null) return;
+    setBusy(true);
+    const r = await api('photos', { pageToken: next || undefined, pageSize: 48 });
+    setBusy(false);
+    if (!r.ok) { setNext(null); return setMsg(r.error); }
+    setItems((a) => [...a, ...r.photos]); setNext(r.next || null);
+  };
+  useEffect(() => {
+    const o = new IntersectionObserver((e) => e[0].isIntersecting && more(), { rootMargin: '700px' });
+    if (end.current) o.observe(end.current);
+    return () => o.disconnect();
+  });
+  useEffect(() => { if (!msg) return; const t = setTimeout(() => setMsg(''), 5000); return () => clearTimeout(t); }, [msg]);
+
+  const go = (d) => { const n = (open + d + items.length) % items.length; setOpen(n); if (n > items.length - 6) more(); };
+  useEffect(() => {
+    if (open < 0) return;
+    const k = (e) => { if (e.key === 'Escape') setOpen(-1); if (e.key === 'ArrowLeft') go(1); if (e.key === 'ArrowRight') go(-1); };
+    window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k);
+  });
+
+  const tap = (i) => (pick ? setSel((s) => (s.includes(i) ? s.filter((x) => x !== i) : [...s, i])) : setOpen(i));
+  const dlSel = async () => {
+    for (let k = 0; k < sel.length; k++) {
+      setMsg(`جارٍ تنزيل ${k + 1} من ${sel.length}…`);
+      if (!(await dlFile(items[sel[k]], setMsg))) return;
+    }
+    setMsg('تم تنزيل الصور المحددة'); setSel([]);
+  };
+  const dlOne = async () => { if (await dlFile(items[open], setMsg)) setMsg('تم التنزيل'); };
+
+  return (
+    <>
+      <div className="bar2">
+        <button className="btn ghost sm" onClick={onBack}>رجوع</button>
+        <button className="btn ghost sm" onClick={() => { setPick(!pick); setSel([]); }}>{pick ? 'إلغاء التحديد' : 'تحديد صور للتنزيل'}</button>
+        {pick && <button className="btn sm" disabled={!sel.length} onClick={dlSel}>تنزيل المحدد ({sel.length})</button>}
+      </div>
+      <div className="mas">
+        {items.map((it, i) => (
+          <img key={it.id} loading="lazy" referrerPolicy="no-referrer" src={sz(it.t, 400)} alt={it.n}
+               className={sel.includes(i) ? 'picked' : ''} onClick={() => tap(i)} />
+        ))}
+      </div>
+      {!items.length && next === null && <p className="muted">لا توجد صور في الألبوم بعد.</p>}
+      <div ref={end} style={{ height: 40 }} />
+      {busy && <p className="muted center-t">جارٍ تحميل المزيد…</p>}
+      {msg && <div className="toast">{msg}</div>}
+
+      {open >= 0 && items[open] && (
+        <div className="lb" onTouchStart={(e) => { x0.current = e.touches[0].clientX; }}
+             onTouchEnd={(e) => { const d = e.changedTouches[0].clientX - x0.current; if (Math.abs(d) > 50) go(d < 0 ? 1 : -1); }}>
+          <div className="lbbar">
+            <span>{open + 1} / {items.length}</span>
+            <span><button className="btn sm" onClick={dlOne}>تنزيل الأصلية</button>{' '}
+              <button className="btn ghost sm light" onClick={() => setOpen(-1)}>إغلاق ✕</button></span>
+          </div>
+          <button className="nv" style={{ right: '.8rem' }} onClick={() => go(-1)}>›</button>
+          <img src={sz(items[open].t, 400)} className="lbthumb" alt="" referrerPolicy="no-referrer" />
+          <img src={sz(items[open].t, 1600)} className="lbfull" alt="" referrerPolicy="no-referrer" />
+          <button className="nv" style={{ left: '.8rem' }} onClick={() => go(1)}>‹</button>
+          {msg && <div className="toast">{msg}</div>}
+        </div>
+      )}
     </>
   );
 }
