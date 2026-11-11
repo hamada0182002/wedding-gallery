@@ -20,18 +20,29 @@ const en = (e = '') => /غير صحيحة/.test(e) ? 'Incorrect username or pass
   : /تعذر الاتصال|انتهت/.test(e) ? 'Connection problem. Please try again'
   : 'Something went wrong. Please try again';
 
-// زرار الرجوع في أندرويد: كل شاشة/نافذة مفتوحة تأخذ خطوة في سجل المتصفح، فالرجوع يقفلها بدل ما يخرج من الموقع
+// زرار الرجوع في أندرويد: كل شاشة/نافذة مفتوحة تأخذ خطوة في سجل المتصفح، والرجوع يقفل آخر واحدة فُتحت فقط (مكدّس واحد مشترك)
+const backStack = [];
+let backSkip = 0;
+if (typeof window !== 'undefined') {
+  window.addEventListener('popstate', () => {
+    if (backSkip > 0) { backSkip--; return; }   // رجوع برمجي عملناه نحن عند قفل نافذة بزرارها
+    const l = backStack.pop();
+    if (l) { l.popped = true; l.close(); }
+  });
+}
 function useBackClose(active, close) {
   const ref = useRef(close); ref.current = close;
   useEffect(() => {
     if (!active) return;
+    const layer = { popped: false, close: () => ref.current() };
     try { history.pushState({ wgLayer: true }, ''); } catch { return; }
-    let popped = false;
-    const onPop = () => { popped = true; ref.current(); };
-    window.addEventListener('popstate', onPop, { once: true });
+    backStack.push(layer);
     return () => {
-      window.removeEventListener('popstate', onPop);
-      if (!popped) { try { if (history.state && history.state.wgLayer) history.back(); } catch { /* ignore */ } }
+      if (layer.popped) return;
+      const i = backStack.indexOf(layer);
+      if (i >= 0) backStack.splice(i, 1);
+      backSkip++;
+      try { history.back(); } catch { backSkip--; }
     };
   }, [active]);
 }
