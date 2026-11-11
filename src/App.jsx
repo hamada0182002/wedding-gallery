@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, tok, wjson, wfetch, resetPhotoToken } from './api';
+import { api, tok, wjson, wfetch, resetPhotoToken, setPhotoToken } from './api';
 
 const fmt = (d) => (d ? new Date(d).toLocaleDateString('ar-EG', { dateStyle: 'long' }) : '');
 const sz = (u, n) => (u ? u.replace(/=s\d+(-c)?$/, '=s' + n) : '');
@@ -14,7 +14,7 @@ export default function App() {
 
   useEffect(() => {
     if (!tok.get()) { setReady(true); return; }
-    api('me').then((r) => { if (r.ok) setUser(r); else tok.clear(); setReady(true); });
+    api('me').then((r) => { if (r.ok) { setPhotoToken(r.ptoken); setUser(r); } else tok.clear(); setReady(true); });
   }, []);
 
   const logout = async () => { await api('logout'); tok.clear(); resetPhotoToken(); cache.items = []; cache.next = ''; setUser(null); setView({ name: 'home', pick: false }); };
@@ -48,7 +48,7 @@ function Login({ onOk }) {
     const r = await api('login', { username: u, password: p });
     setBusy(false);
     if (!r.ok) return setErr(r.error);
-    tok.set(r.token); onOk(r);
+    tok.set(r.token); setPhotoToken(r.ptoken); onOk(r);
   };
 
   return (
