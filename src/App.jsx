@@ -3,6 +3,8 @@ import { api, tok } from './api';
 
 const fmt = (d) => (d ? new Date(d).toLocaleDateString('ar-EG', { dateStyle: 'long' }) : '');
 const sz = (u, n) => (u ? u.replace(/=s\d+(-c)?$/, '=s' + n) : '');
+const cache = { items: [], next: '' };   // يحفظ الصور المحمّلة ليكون الرجوع للمعرض فوريًا
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const gen = () => Math.random().toString(36).slice(2, 6) + Math.random().toString(36).slice(2, 6);
 
 export default function App() {
@@ -15,7 +17,7 @@ export default function App() {
     api('me').then((r) => { if (r.ok) setUser(r); else tok.clear(); setReady(true); });
   }, []);
 
-  const logout = async () => { await api('logout'); tok.clear(); setUser(null); setView({ name: 'home', pick: false }); };
+  const logout = async () => { await api('logout'); tok.clear(); cache.items = []; cache.next = ''; setUser(null); setView({ name: 'home', pick: false }); };
 
   if (!ready) return <div className="center muted">جارٍ التحميل…</div>;
   if (!user) return <Login onOk={setUser} />;
@@ -67,9 +69,9 @@ function Login({ onOk }) {
 }
 
 function Home({ p, onOpen }) {
-  const [cover, setCover] = useState('');
+  const [cover, setCover] = useState(cache.items[0] ? sz(cache.items[0].t, 1600) : '');
   useEffect(() => {
-    if (p.photos) api('photos', { pageSize: 1 }).then((r) => r.ok && r.photos[0] && setCover(sz(r.photos[0].t, 1600)));
+    if (p.photos && !cover) api('photos', { pageSize: 1 }).then((r) => r.ok && r.photos[0] && setCover(sz(r.photos[0].t, 1600)));
   }, [p.photos]);
   return (
     <>
@@ -180,32 +182,38 @@ function Admin() {
   );
 }
 
-// تنزيل الصورة الأصلية على أجزاء (3 ميجا لكل طلب) لتجاوز حدود Apps Script، بدون أي نسخ على Drive
-async function dlFile(it, say) {
+// تجهيز الصورة الأصلية على أجزاء (3 ميجا لكل طلب) بدون أي نسخ على Drive
+async function fetchFile(it, say) {
   const chunks = [];
   let parts = 1;
   for (let p = 0; p < parts; p++) {
     const r = await api('download', { id: it.id, part: p });
-    if (!r.ok) { say(r.error); return false; }
+    if (!r.ok) { say(r.error); return null; }
     parts = r.parts;
     chunks.push(Uint8Array.from(atob(r.data), (c) => c.charCodeAt(0)));
     say(`جارٍ تجهيز الصورة الأصلية… ${p + 1}/${parts}`);
   }
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob(chunks, { type: 'image/jpeg' }));
-  a.download = it.n; a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-  return true;
+  return new File(chunks, it.n, { type: 'image/jpeg' });
+}
+
+// أندرويد والكمبيوتر: تنزيل عادي
+function saveToDevice(files) {
+  files.forEach((f, i) => setTimeout(() => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(f); a.download = f.name; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 8000);
+  }, i * 700));
 }
 
 function Gallery({ pickInit, onBack }) {
-  const [items, setItems] = useState([]);
-  const [next, setNext] = useState('');      // '' = أول صفحة، null = انتهت الصور
+  const [items, setItems] = useState(cache.items);
+  const [next, setNext] = useState(cache.next);   // '' = أول صفحة، null = انتهت الصور
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(-1);
   const [pick, setPick] = useState(pickInit);
   const [sel, setSel] = useState([]);
   const [msg, setMsg] = useState('');
+  const [ready, setReady] = useState(null);       // ملفات جاهزة للحفظ في الصور (آيفون)
   const end = useRef(null);
   const x0 = useRef(0);
 
@@ -215,7 +223,9 @@ function Gallery({ pickInit, onBack }) {
     const r = await api('photos', { pageToken: next || undefined, pageSize: 48 });
     setBusy(false);
     if (!r.ok) { setNext(null); return setMsg(r.error); }
-    setItems((a) => [...a, ...r.photos]); setNext(r.next || null);
+    const merged = [...items, ...r.photos];
+    cache.items = merged; cache.next = r.next || null;
+    setItems(merged); setNext(r.next || null);
   };
   useEffect(() => {
     const o = new IntersectionObserver((e) => e[0].isIntersecting && more(), { rootMargin: '700px' });
@@ -230,16 +240,38 @@ function Gallery({ pickInit, onBack }) {
     const k = (e) => { if (e.key === 'Escape') setOpen(-1); if (e.key === 'ArrowLeft') go(1); if (e.key === 'ArrowRight') go(-1); };
     window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k);
   });
+  // تحميل مسبق للصورة التالية والسابقة ليصبح التنقل فوريًا
+  useEffect(() => {
+    if (open < 0) return;
+    [1, -1].forEach((d) => {
+      const it = items[(open + d + items.length) % items.length];
+      if (it) { const im = new Image(); im.referrerPolicy = 'no-referrer'; im.src = sz(it.t, 1280); }
+    });
+  }, [open]);
 
   const tap = (i) => (pick ? setSel((s) => (s.includes(i) ? s.filter((x) => x !== i) : [...s, i])) : setOpen(i));
-  const dlSel = async () => {
-    for (let k = 0; k < sel.length; k++) {
-      setMsg(`جارٍ تنزيل ${k + 1} من ${sel.length}…`);
-      if (!(await dlFile(items[sel[k]], setMsg))) return;
-    }
-    setMsg('تم تنزيل الصور المحددة'); setSel([]);
+
+  const deliver = (files) => {
+    if (isIOS && navigator.canShare && navigator.canShare({ files })) { setReady(files); setMsg(''); }
+    else { saveToDevice(files); setMsg('تم التنزيل'); }
   };
-  const dlOne = async () => { if (await dlFile(items[open], setMsg)) setMsg('تم التنزيل'); };
+  const dlSel = async () => {
+    if (isIOS && sel.length > 15) return setMsg('اختاروا 15 صورة كحد أقصى في المرة الواحدة');
+    const files = [];
+    for (let k = 0; k < sel.length; k++) {
+      setMsg(`جارٍ تجهيز ${k + 1} من ${sel.length}…`);
+      const f = await fetchFile(items[sel[k]], setMsg);
+      if (!f) return;
+      files.push(f);
+    }
+    setSel([]); deliver(files);
+  };
+  const dlOne = async () => { const f = await fetchFile(items[open], setMsg); if (f) deliver([f]); };
+  // لازم يتنفذ مباشرة من ضغطة المستخدم، لذلك هو زر منفصل بعد تجهيز الصور
+  const saveReady = async () => {
+    try { await navigator.share({ files: ready }); setMsg('تم الحفظ'); setReady(null); }
+    catch (e) { if (e.name !== 'AbortError') setMsg('تعذر الحفظ، جرّبوا مرة أخرى'); }
+  };
 
   return (
     <>
@@ -258,20 +290,25 @@ function Gallery({ pickInit, onBack }) {
       <div ref={end} style={{ height: 40 }} />
       {busy && <p className="muted center-t">جارٍ تحميل المزيد…</p>}
       {msg && <div className="toast">{msg}</div>}
+      {ready && (
+        <div className="savebar">
+          <button className="btn" onClick={saveReady}>حفظ {ready.length} {ready.length > 1 ? 'صور' : 'صورة'} في الصور</button>
+          <button className="btn ghost" onClick={() => setReady(null)}>إلغاء</button>
+        </div>
+      )}
 
       {open >= 0 && items[open] && (
         <div className="lb" onTouchStart={(e) => { x0.current = e.touches[0].clientX; }}
              onTouchEnd={(e) => { const d = e.changedTouches[0].clientX - x0.current; if (Math.abs(d) > 50) go(d < 0 ? 1 : -1); }}>
           <div className="lbbar">
             <span>{open + 1} / {items.length}</span>
-            <span><button className="btn sm" onClick={dlOne}>تنزيل الأصلية</button>{' '}
+            <span><button className="btn sm" onClick={dlOne}>{isIOS ? 'حفظ في الصور' : 'تنزيل الأصلية'}</button>{' '}
               <button className="btn ghost sm light" onClick={() => setOpen(-1)}>إغلاق ✕</button></span>
           </div>
           <button className="nv" style={{ right: '.8rem' }} onClick={() => go(-1)}>›</button>
           <img src={sz(items[open].t, 400)} className="lbthumb" alt="" referrerPolicy="no-referrer" />
-          <img src={sz(items[open].t, 1600)} className="lbfull" alt="" referrerPolicy="no-referrer" />
+          <img key={items[open].id} src={sz(items[open].t, 1280)} className="lbfull" alt="" referrerPolicy="no-referrer" />
           <button className="nv" style={{ left: '.8rem' }} onClick={() => go(1)}>‹</button>
-          {msg && <div className="toast">{msg}</div>}
         </div>
       )}
     </>
