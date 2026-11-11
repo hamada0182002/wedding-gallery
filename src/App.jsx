@@ -182,18 +182,16 @@ function Admin() {
   );
 }
 
-// تجهيز الصورة الأصلية على أجزاء (3 ميجا لكل طلب) بدون أي نسخ على Drive
+// تجهيز الصورة الأصلية بدون أي نسخ على Drive: أول جزء ثم باقي الأجزاء بالتوازي
 async function fetchFile(it, say) {
-  const chunks = [];
-  let parts = 1;
-  for (let p = 0; p < parts; p++) {
-    const r = await api('download', { id: it.id, part: p });
-    if (!r.ok) { say(r.error); return null; }
-    parts = r.parts;
-    chunks.push(Uint8Array.from(atob(r.data), (c) => c.charCodeAt(0)));
-    say(`جارٍ تجهيز الصورة الأصلية… ${p + 1}/${parts}`);
-  }
-  return new File(chunks, it.n, { type: 'image/jpeg' });
+  const first = await api('download', { id: it.id, part: 0 });
+  if (!first.ok) { say(first.error); return null; }
+  const rest = await Promise.all(
+    Array.from({ length: first.parts - 1 }, (_, i) => api('download', { id: it.id, part: i + 1 }))
+  );
+  const all = [first, ...rest];
+  if (all.some((r) => !r.ok)) { say('تعذر تجهيز الصورة، حاول مرة أخرى'); return null; }
+  return new File(all.map((r) => Uint8Array.from(atob(r.data), (c) => c.charCodeAt(0))), it.n, { type: 'image/jpeg' });
 }
 
 // أندرويد والكمبيوتر: تنزيل عادي
@@ -258,15 +256,21 @@ function Gallery({ pickInit, onBack }) {
   const dlSel = async () => {
     if (isIOS && sel.length > 15) return setMsg('اختاروا 15 صورة كحد أقصى في المرة الواحدة');
     const files = [];
-    for (let k = 0; k < sel.length; k++) {
-      setMsg(`جارٍ تجهيز ${k + 1} من ${sel.length}…`);
-      const f = await fetchFile(items[sel[k]], setMsg);
-      if (!f) return;
-      files.push(f);
+    let done = 0;
+    setMsg(`جارٍ تجهيز ${sel.length} صورة…`);
+    for (let k = 0; k < sel.length; k += 3) {   // 3 صور في نفس الوقت
+      const res = await Promise.all(sel.slice(k, k + 3).map((i) =>
+        fetchFile(items[i], () => {}).then((f) => { setMsg(`تم تجهيز ${++done} من ${sel.length}…`); return f; })));
+      if (res.some((f) => !f)) return setMsg('تعذر تجهيز بعض الصور، حاولوا مرة أخرى');
+      files.push(...res);
     }
     setSel([]); deliver(files);
   };
-  const dlOne = async () => { const f = await fetchFile(items[open], setMsg); if (f) deliver([f]); };
+  const dlOne = async () => {
+    setMsg('جارٍ تجهيز الصورة الأصلية…');
+    const f = await fetchFile(items[open], setMsg);
+    if (f) deliver([f]);
+  };
   // لازم يتنفذ مباشرة من ضغطة المستخدم، لذلك هو زر منفصل بعد تجهيز الصور
   const saveReady = async () => {
     try { await navigator.share({ files: ready }); setMsg('تم الحفظ'); setReady(null); }
