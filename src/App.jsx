@@ -227,8 +227,8 @@ function Home({ p, onOpen, onMenu }) {
       </section>
 
       <div className="hbtns">
-        <button className="hbtn fill" onClick={() => onOpen('view')}><IcImage />View Gallery<IcArrow /></button>
-        <button className="hbtn" onClick={() => onOpen('all')}><IcDownload />Download All</button>
+        <button className="hbtn fill" onClick={() => onOpen('view')}><IcImage />كل الصور<IcArrow /></button>
+        <button className="hbtn" onClick={() => onOpen('all')}><IcDownload />تحميل كل الصور</button>
       </div>
 
       <Feedback />
@@ -258,16 +258,10 @@ function Couple({ user, onLogout }) {
   useBackClose(sheet, () => setSheet(false));
   const open = (mode) => { setView({ name: 'gallery', mode }); setTab('gallery'); window.scrollTo(0, 0); };
   const goHome = () => { setView({ name: 'home', mode: 'view' }); setTab('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); };
-  const goFeedback = () => {
-    setTab('feedback');
-    const go = () => { const el = document.getElementById('feedback'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); };
-    if (home) go(); else { setView({ name: 'home', mode: 'view' }); setTimeout(go, 150); }
-  };
   const active = sheet ? 'settings' : tab;
   const tabs = [
     ['home', 'Home', IcHome, goHome],
-    ['gallery', 'Gallery', IcImage, () => open('view')],
-    ['feedback', 'Feedback', IcStarO, goFeedback]
+    ['gallery', 'Gallery', IcImage, () => open('view')]
   ];
   return (
     <>
@@ -623,10 +617,10 @@ function Gallery({ mode, onBack }) {
   return (
     <>
       <div className="bar2">
-        <button className="btn sm" onClick={onBack}>← Back</button>
-        <button className="btn sm" onClick={() => { setPick(!pick); setSel([]); }}>{pick ? 'Cancel' : 'Select'}</button>
-        {pick && <button className="btn sm fill" disabled={!sel.length} onClick={() => { downloadList(sel.map((i) => items[i])); setSel([]); setPick(false); }}>Download ({sel.length})</button>}
-        {!pick && <button className="btn sm fill" onClick={runAll}>Download all</button>}
+        <button className="btn sm" onClick={onBack}>رجوع</button>
+        <button className="btn sm" onClick={() => { setPick(!pick); setSel([]); }}>{pick ? 'إلغاء' : 'تحديد'}</button>
+        {pick && <button className="btn sm fill" disabled={!sel.length} onClick={() => { downloadList(sel.map((i) => items[i])); setSel([]); setPick(false); }}>تحميل ({sel.length})</button>}
+        {!pick && <button className="btn sm fill" onClick={runAll}>تحميل كل الصور</button>}
       </div>
       <div className="mas">
         {items.map((it, i) => <Thumb key={it.id} i={i} it={it} picked={sel.includes(i)} onClick={() => tap(i)} />)}

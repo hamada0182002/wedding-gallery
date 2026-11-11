@@ -115,7 +115,7 @@ table{width:100%;border-collapse:collapse;font-size:.95rem}th,td{padding:.55rem 
 .hinp input::placeholder{color:#A99280;opacity:1}.hinp input:focus{outline:none}
 .hsend{width:calc(433*var(--u));font-size:calc(26*var(--u))}
 .hmsg{margin:calc(14*var(--u)) 0 0;font-size:calc(22*var(--u));color:#6E4A33;text-align:center}
-.tabs{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:min(100vw,520px);z-index:10;display:grid;grid-template-columns:repeat(3,1fr);padding:calc(22*var(--u)) 0 calc(14*var(--u) + env(safe-area-inset-bottom,0px));background:#F3E7DC;border-radius:calc(40*var(--u)) calc(40*var(--u)) 0 0;box-shadow:0 -8px 28px rgba(99,62,37,.09)}
+.tabs{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:min(100vw,520px);z-index:10;display:grid;grid-template-columns:repeat(2,1fr);padding:calc(22*var(--u)) 0 calc(14*var(--u) + env(safe-area-inset-bottom,0px));background:#F3E7DC;border-radius:calc(40*var(--u)) calc(40*var(--u)) 0 0;box-shadow:0 -8px 28px rgba(99,62,37,.09)}
 .tabs button{display:flex;flex-direction:column;align-items:center;gap:calc(8*var(--u));border:0;background:none;padding:0;cursor:pointer;color:#7A5A45;font:500 calc(22*var(--u))/1 Inter,-apple-system,sans-serif;letter-spacing:0;text-transform:none}
 .tabs svg{width:calc(42*var(--u));height:calc(42*var(--u))}
 .tabs button::after{content:'';display:block;width:calc(88*var(--u));height:max(2px,calc(3*var(--u)));border-radius:2px;background:transparent;margin-top:calc(6*var(--u))}
