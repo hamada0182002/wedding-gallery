@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, tok } from './api';
+import { api, tok, wjson, wfetch, resetPhotoToken } from './api';
 
 const fmt = (d) => (d ? new Date(d).toLocaleDateString('ar-EG', { dateStyle: 'long' }) : '');
 const sz = (u, n) => (u ? u.replace(/=s\d+(-c)?$/, '=s' + n) : '');
@@ -17,7 +17,7 @@ export default function App() {
     api('me').then((r) => { if (r.ok) setUser(r); else tok.clear(); setReady(true); });
   }, []);
 
-  const logout = async () => { await api('logout'); tok.clear(); cache.items = []; cache.next = ''; setUser(null); setView({ name: 'home', pick: false }); };
+  const logout = async () => { await api('logout'); tok.clear(); resetPhotoToken(); cache.items = []; cache.next = ''; setUser(null); setView({ name: 'home', pick: false }); };
 
   if (!ready) return <div className="center muted">جارٍ التحميل…</div>;
   if (!user) return <Login onOk={setUser} />;
@@ -70,9 +70,11 @@ function Login({ onOk }) {
 
 function Home({ p, onOpen }) {
   const [cover, setCover] = useState(cache.items[0] ? sz(cache.items[0].t, 1600) : '');
+  const [count, setCount] = useState(p.photos);
   useEffect(() => {
-    if (p.photos && !cover) api('photos', { pageSize: 1 }).then((r) => r.ok && r.photos[0] && setCover(sz(r.photos[0].t, 1600)));
-  }, [p.photos]);
+    wjson('/count').then((r) => r.ok && setCount(r.count));
+    if (!cover) wjson('/list', { pageSize: 1 }).then((r) => r.ok && r.photos[0] && setCover(sz(r.photos[0].t, 1600)));
+  }, []);
   return (
     <>
       <section className="hero">
@@ -85,7 +87,7 @@ function Home({ p, onOpen }) {
       </section>
       <div className="card" style={{ marginTop: '1rem' }}>
         <p style={{ margin: 0 }}>مبروك! ذكرى يومكم الجميل محفوظة هنا بجودتها الكاملة، شاهدوها وحمّلوها وقتما أحببتم.</p>
-        <div className="stat"><b>{p.photos}</b><span className="muted">صورة في الألبوم</span></div>
+        <div className="stat"><b>{count}</b><span className="muted">صورة في الألبوم</span></div>
         <div className="row">
           <button className="btn" onClick={() => onOpen(false)}>عرض الصور</button>
           <button className="btn ghost" onClick={() => onOpen(true)}>تنزيل الصور</button>
@@ -182,16 +184,13 @@ function Admin() {
   );
 }
 
-// تجهيز الصورة الأصلية بدون أي نسخ على Drive: أول جزء ثم باقي الأجزاء بالتوازي
+// الصورة الأصلية بجودتها الكاملة، بث مباشر من Drive عبر Worker بدون أي نسخ أو ضغط
 async function fetchFile(it, say) {
-  const first = await api('download', { id: it.id, part: 0 });
-  if (!first.ok) { say(first.error); return null; }
-  const rest = await Promise.all(
-    Array.from({ length: first.parts - 1 }, (_, i) => api('download', { id: it.id, part: i + 1 }))
-  );
-  const all = [first, ...rest];
-  if (all.some((r) => !r.ok)) { say('تعذر تجهيز الصورة، حاول مرة أخرى'); return null; }
-  return new File(all.map((r) => Uint8Array.from(atob(r.data), (c) => c.charCodeAt(0))), it.n, { type: 'image/jpeg' });
+  try {
+    const r = await wfetch('/file', { id: it.id });
+    if (!r.ok) { say('تعذر تجهيز الصورة، حاول مرة أخرى'); return null; }
+    return new File([await r.blob()], it.n, { type: 'image/jpeg' });
+  } catch (e) { say('تعذر تجهيز الصورة، حاول مرة أخرى'); return null; }
 }
 
 // أندرويد والكمبيوتر: تنزيل عادي
@@ -218,7 +217,7 @@ function Gallery({ pickInit, onBack }) {
   const more = async () => {
     if (busy || next === null) return;
     setBusy(true);
-    const r = await api('photos', { pageToken: next || undefined, pageSize: 48 });
+    const r = await wjson('/list', { pageToken: next || '', pageSize: 48 });
     setBusy(false);
     if (!r.ok) { setNext(null); return setMsg(r.error); }
     const merged = [...items, ...r.photos];
