@@ -23,7 +23,6 @@ const en = (e = '') => /غير صحيحة/.test(e) ? 'Incorrect username or pass
 export default function App() {
   const [user, setUser] = useState(null);
   const [ready, setReady] = useState(false);
-  const [view, setView] = useState({ name: 'home', mode: 'view' });
 
   useEffect(() => {
     if (!tok.get()) { setReady(true); return; }
@@ -33,24 +32,20 @@ export default function App() {
 
   const logout = async () => {
     await api('logout'); tok.clear(); resetPhotoToken(); cache.items = []; cache.next = '';
-    setUser(null); setView({ name: 'home', mode: 'view' });
+    setUser(null);
   };
 
   if (!ready) return <div className="center"><img className="logo big pulse" src={LOGO} alt="" /></div>;
   if (!user) return <Login onOk={setUser} />;
-  const admin = user.role === 'admin';
+  if (user.role !== 'admin') return <Couple user={user} onLogout={logout} />;
   return (
     <>
       <header>
         <span />
         <img className="logo" src={LOGO} alt="HM Studio" />
-        <button className="link up" onClick={logout}>{admin ? 'تسجيل الخروج' : 'Sign out'}</button>
+        <button className="link up" onClick={logout}>تسجيل الخروج</button>
       </header>
-      <main className="wrap view" key={admin ? 'a' : view.name}>
-        {admin ? <Admin />
-          : view.name === 'gallery' ? <Gallery mode={view.mode} onBack={() => setView({ name: 'home', mode: 'view' })} />
-          : <Home p={user.profile} onOpen={(mode) => setView({ name: 'gallery', mode })} />}
-      </main>
+      <main className="wrap view" key="a"><Admin /></main>
     </>
   );
 }
@@ -86,31 +81,181 @@ function Login({ onOk }) {
   );
 }
 
-function Home({ p, onOpen }) {
-  const [cover, setCover] = useState(cache.items[0] ? sz(cache.items[0].t, 1600) : '');
+/* ---------- أيقونات وزخارف الواجهة ---------- */
+const Svg = ({ children, ...r }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...r}>{children}</svg>
+);
+const IcImage = (r) => <Svg {...r}><rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="9" cy="9" r="1.6" /><path d="M4 17l5-5 4 4 3-3 4 4" /></Svg>;
+const IcArrow = (r) => <Svg {...r}><path d="M4 12h16M14 6l6 6-6 6" /></Svg>;
+const IcDownload = (r) => <Svg {...r}><path d="M12 4v11M7 11l5 5 5-5M5 20h14" /></Svg>;
+const IcPencil = (r) => <Svg {...r}><path d="M4 20l1-4L16 5l3 3L8 19l-4 1zM14 7l3 3" /></Svg>;
+const IcSend = (r) => <Svg {...r}><path d="M21 3L10 14M21 3l-7 18-4-7-7-4 18-7z" /></Svg>;
+const IcHome = (r) => <Svg {...r}><path className="fl" d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" /></Svg>;
+const IcStarO = (r) => <Svg {...r}><path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z" /></Svg>;
+const IcGear = (r) => <Svg {...r}><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /></Svg>;
+
+const HEART = 'M12 21C4 14 1 10 1 6.5A5.2 5.2 0 0 1 12 4.6 5.2 5.2 0 0 1 23 6.5C23 10 20 14 12 21Z';
+const Swirl = ({ className }) => (
+  <svg className={className} viewBox="0 0 120 40" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" aria-hidden="true">
+    <g transform="translate(14 0) scale(.78)"><path d={HEART} /></g>
+    <path d="M24 17C38 38 66 32 78 23S100 18 118 12" />
+  </svg>
+);
+const Divider = () => (
+  <svg className="hdiv" viewBox="0 0 260 24" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M2 12H104M98 8l6 4-6 4M258 12H156M162 8l-6 4 6 4" />
+    <g transform="translate(121 3) scale(.75)"><path d={HEART} /></g>
+  </svg>
+);
+function Sprig({ className, flowers }) {
+  const leaves = [[170, -35], [140, 40], [112, -40], [84, 38], [58, -38], [32, 30]];
+  const blooms = [[56, 14], [41, 52], [30, 92]];
+  return (
+    <svg className={className} viewBox="0 0 100 200" aria-hidden="true">
+      <path d="M18 198C28 150 36 100 56 6" fill="none" stroke="currentColor" strokeWidth="1.3" />
+      {leaves.map(([y, r], i) => {
+        const cx = 18 + (198 - y) * 0.198 + (r > 0 ? 11 : -11);
+        return <ellipse key={i} cx={cx} cy={y} rx="15" ry="5" transform={`rotate(${r} ${cx} ${y})`} />;
+      })}
+      {flowers && blooms.map(([x, y], i) => (
+        <g key={i}>
+          {[0, 72, 144, 216, 288].map((a) => <ellipse key={a} cx={x} cy={y - 7} rx="4.4" ry="7" transform={`rotate(${a} ${x} ${y})`} />)}
+          <circle cx={x} cy={y} r="2.4" className="ct" />
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+function Feedback() {
+  const [rating, setRating] = useState(5);
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const send = async () => {
+    setBusy(true); setMsg('');
+    const r = await api('feedback', { rating, text: text.trim() });
+    setBusy(false);
+    if (r.ok) { setText(''); setMsg('Thank you for your feedback ♥'); } else setMsg(en(r.error));
+  };
+  return (
+    <section className="hfb" id="feedback">
+      <Sprig className="hleaf" />
+      <div className="hfbt"><h2 className="itl">Your Words Matter</h2><Swirl className="hsw2" /></div>
+      <p className="hsub">Share your experience with us</p>
+      <div className="hstars">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button key={n} aria-label={`${n} star${n > 1 ? 's' : ''}`} className={n <= rating ? 'on' : ''} onClick={() => setRating(n)}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.1l-5.6 2.9 1.1-6.2L3 9.4l6.2-.9z" strokeLinejoin="round" /></svg>
+          </button>
+        ))}
+      </div>
+      <label className="hinp"><IcPencil /><input value={text} maxLength={500} placeholder="Your feedback..." onChange={(e) => setText(e.target.value)} /></label>
+      <button className="hbtn fill hsend" disabled={busy} onClick={send}><IcSend />{busy ? 'Sending…' : 'Send Feedback'}</button>
+      {msg && <p className="hmsg">{msg}</p>}
+    </section>
+  );
+}
+
+function Home({ p, onOpen, onMenu }) {
+  const [ph, setPh] = useState(cache.items.slice(0, 5));
   const [loaded, setLoaded] = useState(false);
   const [count, setCount] = useState(p.photos);
   useEffect(() => {
     wjson('/count').then((r) => r.ok && setCount(r.count));
-    if (!cover) wjson('/list', { pageSize: 1 }).then((r) => r.ok && r.photos[0] && setCover(sz(r.photos[0].t, 1600)));
+    if (ph.length < 5) wjson('/list', { pageSize: 5 }).then((r) => r.ok && r.photos.length && setPh(r.photos));
   }, []);
+  const cover = ph[0] ? sz(ph[0].t, 1600) : '';
+  const pool = ph.length > 1 ? ph.slice(1) : ph;
+  const tiles = pool.length ? [0, 1, 2, 3].map((i) => pool[i % pool.length]) : [];
+  return (
+    <div className="hm">
+      <section className="hhero">
+        {cover && <img className={'hcover' + (loaded ? ' in' : '')} src={cover} alt="" referrerPolicy="no-referrer" onLoad={() => setLoaded(true)} />}
+        <div className="hshade" />
+        <img className="hlogo" src={LOGO} alt="HM Studio" />
+        <button className="hmenu" aria-label="Menu" onClick={onMenu}><i /><i /><i /></button>
+        <div className="hnames">
+          <h1 className="gv">{p.names}</h1>
+          <Divider />
+          <p className="hdate">{fmt(p.date).replace(/\//g, ' / ')}</p>
+        </div>
+        <svg className="hwave" viewBox="0 0 852 70" preserveAspectRatio="none" aria-hidden="true">
+          <path d="M0 26C110 2 230 34 430 24S720 -6 852 12V70H0Z" />
+        </svg>
+      </section>
+
+      <Sprig className="hflw" flowers />
+
+      <section className="hstat">
+        <IcImage className="hic" />
+        <div className="hcnt"><b>{count || 0}</b><span>Photos</span></div>
+        <i className="hvl" />
+        <p className="itl hwel">Welcome to our<br />Wedding Gallery</p>
+        <Swirl className="hsw1" />
+      </section>
+
+      <div className="hbtns">
+        <button className="hbtn fill" onClick={() => onOpen('view')}><IcImage />View Gallery<IcArrow /></button>
+        <button className="hbtn" onClick={() => onOpen('all')}><IcDownload />Download All</button>
+      </div>
+
+      <div className="hmos">
+        {tiles.map((it, i) => (
+          <img key={i} className={'m' + i} src={sz(it.t, 700)} alt="" referrerPolicy="no-referrer" loading="lazy" onClick={() => onOpen('view')} />
+        ))}
+      </div>
+
+      <Feedback />
+    </div>
+  );
+}
+
+function Sheet({ names, onClose, onLogout }) {
+  return (
+    <div className="sbg" onClick={onClose}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <i className="grab" />
+        <p className="gv sname">{names}</p>
+        <button className="hbtn fill" onClick={onLogout}>Sign out</button>
+        <button className="hbtn" onClick={onClose}>Close</button>
+      </div>
+    </div>
+  );
+}
+
+function Couple({ user, onLogout }) {
+  const [view, setView] = useState({ name: 'home', mode: 'view' });
+  const [tab, setTab] = useState('home');
+  const [sheet, setSheet] = useState(false);
+  const home = view.name === 'home';
+  const open = (mode) => { setView({ name: 'gallery', mode }); setTab('gallery'); window.scrollTo(0, 0); };
+  const goHome = () => { setView({ name: 'home', mode: 'view' }); setTab('home'); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const goFeedback = () => {
+    setTab('feedback');
+    const go = () => { const el = document.getElementById('feedback'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); };
+    if (home) go(); else { setView({ name: 'home', mode: 'view' }); setTimeout(go, 150); }
+  };
+  const active = sheet ? 'settings' : tab;
+  const tabs = [
+    ['home', 'Home', IcHome, goHome],
+    ['gallery', 'Gallery', IcImage, () => open('view')],
+    ['feedback', 'Feedback', IcStarO, goFeedback],
+    ['settings', 'Settings', IcGear, () => setSheet(true)]
+  ];
   return (
     <>
-      <section className="hero">
-        {cover && <img className={'cover' + (loaded ? ' in' : '')} src={cover} alt="" referrerPolicy="no-referrer" onLoad={() => setLoaded(true)} />}
-        <div className="env">
-          <h1 className="script">{p.names}</h1>
-          <p className="up date">{fmt(p.date)}</p>
-        </div>
-      </section>
-      <section className="intro">
-        <h2 className="up">Your Gallery</h2>
-        <p className="up muted">{count} Photos</p>
-        <div className="row">
-          <button className="btn" onClick={() => onOpen('view')}>View gallery</button>
-          <button className="btn fill" onClick={() => onOpen('all')}>Download all</button>
-        </div>
-      </section>
+      <main className={(home ? 'home' : 'wrap gal') + ' view'} key={view.name}>
+        {home
+          ? <Home p={user.profile} onOpen={open} onMenu={() => setSheet(true)} />
+          : <Gallery mode={view.mode} onBack={goHome} />}
+      </main>
+      <nav className="tabs">
+        {tabs.map(([k, label, Ic, fn]) => (
+          <button key={k} className={active === k ? 'on' : ''} onClick={fn}><Ic /><span>{label}</span></button>
+        ))}
+      </nav>
+      {sheet && <Sheet names={user.profile.names} onClose={() => setSheet(false)} onLogout={onLogout} />}
     </>
   );
 }
