@@ -267,6 +267,25 @@ function Thumb({ it, picked, onClick }) {
   );
 }
 
+// الصورة الكبيرة: نجرب رابط جوجل المصغّر أولًا، ولو فشل (منتهي أو محظور) نجيب الصورة من الـ Worker مباشرة
+function FullImg({ it, cls }) {
+  const [src, setSrc] = useState(sz(it.t, 1280));
+  const tried = useRef(false);
+  const blob = useRef('');
+  const fallback = async () => {
+    if (tried.current) return;
+    tried.current = true;
+    try {
+      const r = await wfetch('/file', { id: it.id });
+      if (!r.ok) return;
+      blob.current = URL.createObjectURL(await r.blob());
+      setSrc(blob.current);
+    } catch { /* ignore */ }
+  };
+  useEffect(() => { if (!it.t) fallback(); return () => { if (blob.current) URL.revokeObjectURL(blob.current); }; }, []);
+  return <img src={src} className={cls} alt="" referrerPolicy="no-referrer" onError={fallback} />;
+}
+
 function Gallery({ mode, onBack }) {
   const [items, setItems] = useState(cache.items);
   const [next, setNext] = useState(cache.next);   // '' = أول صفحة، null = انتهت الصور
@@ -417,7 +436,7 @@ function Gallery({ mode, onBack }) {
           </div>
           <button className="nv" style={{ left: '.8rem' }} disabled={open === 0} onClick={() => go(-1)}>‹</button>
           <img src={sz(items[open].t, 400)} className="lbthumb" alt="" referrerPolicy="no-referrer" />
-          <img key={items[open].id} src={sz(items[open].t, 1280)} className={'lbfull ' + (dir > 0 ? 'sn' : 'sp')} alt="" referrerPolicy="no-referrer" />
+          <FullImg key={items[open].id} it={items[open]} cls={'lbfull ' + (dir > 0 ? 'sn' : 'sp')} />
           <button className="nv" style={{ right: '.8rem' }} disabled={atEnd} onClick={() => go(1)}>›</button>
         </div>
       )}
