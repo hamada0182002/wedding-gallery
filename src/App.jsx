@@ -23,6 +23,8 @@ const en = (e = '') => /غير صحيحة/.test(e) ? 'Incorrect username or pass
 export default function App() {
   const [user, setUser] = useState(null);
   const [ready, setReady] = useState(false);
+  const [splash, setSplash] = useState(true);
+  useEffect(() => { const t = setTimeout(() => setSplash(false), 3200); return () => clearTimeout(t); }, []);
 
   useEffect(() => {
     if (!tok.get()) { setReady(true); return; }
@@ -35,7 +37,7 @@ export default function App() {
     setUser(null);
   };
 
-  if (!ready) return <div className="center"><img className="logo big pulse" src={LOGO} alt="" /></div>;
+  if (!ready || splash) return <div className="splash"><DrawLogo className="splogo" /></div>;
   if (!user) return <Login onOk={setUser} />;
   if (user.role !== 'admin') return <Couple user={user} onLogout={logout} />;
   return (
@@ -181,8 +183,7 @@ function Home({ p, onOpen, onMenu }) {
   return (
     <div className="hm">
       <header className="hbar">
-        <DrawLogo className="hlogo" />
-        <p className="gv hbrand">Hamada Mohamed Photography</p>
+        <img className="hlogo" src={LOGO} alt="HM Studio" />
         <button className="hmenu" aria-label="Menu" onClick={onMenu}><i /><i /><i /></button>
       </header>
       <section className="hhero">
