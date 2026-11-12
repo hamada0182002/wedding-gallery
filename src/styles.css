@@ -136,3 +136,8 @@ html,body{overscroll-behavior:none;touch-action:pan-y;-webkit-text-size-adjust:1
 @keyframes dlfill{to{opacity:1}}
 @keyframes dlout{to{opacity:0}}
 .splash{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg)}.splogo{width:150px;height:auto;color:#4A3C33;overflow:visible}
+
+/* الفيدباك بالعربية */
+#feedback .itl{font-family:'Cairo','Aref Ruqaa',system-ui,sans-serif;font-style:normal;font-weight:600}
+#feedback .hsub,#feedback .hmsg,#feedback .hbtn{font-family:'Cairo',system-ui,sans-serif}
+#feedback .hinp input{font-family:'Cairo',Inter,system-ui,sans-serif;text-align:right}

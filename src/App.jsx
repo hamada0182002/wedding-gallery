@@ -13,6 +13,10 @@ const folderOf = (v) => {
   return m ? m[1] : String(v).trim().split(/[?&#\s]/)[0];
 };
 const gen = () => Math.random().toString(36).slice(2, 6) + Math.random().toString(36).slice(2, 6);
+// رسائل خطأ الفيدباك بالعربية
+const arErr = (e = '') => /انتهت|موقوف/.test(e) ? 'انتهت الجلسة، سجّلوا الدخول من جديد'
+  : /تعذر الاتصال/.test(e) ? 'مشكلة في الاتصال، حاولوا مرة أخرى'
+  : 'حدث خطأ، حاولوا مرة أخرى';
 // رسائل الخطأ للعرسان بالإنجليزية فقط
 const en = (e = '') => /غير صحيحة/.test(e) ? 'Incorrect username or password'
   : /موقوف/.test(e) ? 'This account is suspended. Please contact the studio'
@@ -166,22 +170,22 @@ function Feedback() {
     setBusy(true); setMsg('');
     const r = await api('feedback', { rating, text: text.trim() });
     setBusy(false);
-    if (r.ok) { setText(''); setMsg('Thank you for your feedback ♥'); } else { console.error('feedback failed:', r.error); setMsg(en(r.error)); }
+    if (r.ok) { setText(''); setMsg('شكرًا لرأيكم ♥'); } else { console.error('feedback failed:', r.error); setMsg(arErr(r.error)); }
   };
   return (
-    <section className="hfb" id="feedback">
+    <section className="hfb" id="feedback" dir="rtl">
       <Sprig className="hleaf" />
-      <div className="hfbt"><h2 className="itl">Your Words Matter</h2><Swirl className="hsw2" /></div>
-      <p className="hsub">Share your experience with us</p>
-      <div className="hstars">
+      <div className="hfbt"><h2 className="itl">رأيكم يهمنا</h2><Swirl className="hsw2" /></div>
+      <p className="hsub">شاركونا تجربتكم معنا</p>
+      <div className="hstars" dir="ltr">
         {[1, 2, 3, 4, 5].map((n) => (
-          <button key={n} aria-label={`${n} star${n > 1 ? 's' : ''}`} className={n <= rating ? 'on' : ''} onClick={() => setRating(n)}>
+          <button key={n} aria-label={`${n} من 5 نجوم`} className={n <= rating ? 'on' : ''} onClick={() => setRating(n)}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.1l-5.6 2.9 1.1-6.2L3 9.4l6.2-.9z" strokeLinejoin="round" /></svg>
           </button>
         ))}
       </div>
-      <label className="hinp"><IcPencil /><input value={text} maxLength={500} placeholder="Your feedback..." onChange={(e) => setText(e.target.value)} /></label>
-      <button className="hbtn fill hsend" disabled={busy} onClick={send}><IcSend />{busy ? 'Sending…' : 'Send Feedback'}</button>
+      <label className="hinp"><IcPencil /><input value={text} maxLength={500} placeholder="اكتبوا رأيكم هنا..." onChange={(e) => setText(e.target.value)} /></label>
+      <button className="hbtn fill hsend" disabled={busy} onClick={send}><IcSend />{busy ? 'جاري الإرسال…' : 'إرسال الرأي'}</button>
       {msg && <p className="hmsg">{msg}</p>}
     </section>
   );
